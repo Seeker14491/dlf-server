@@ -62,14 +62,14 @@ fn routes(pool: PgPool) -> impl Filter<Extract = impl Reply> + Clone + Send + Sy
             }
         });
 
-    let reviews = warp::path!("categories" / String / String)
+    let inspections = warp::path!("categories" / String / String)
         .and(warp::path::end())
         .and_then(move |category_name: String, leaderboard_name: String| {
             let pool = pool.clone();
             async move {
-                reviews(&pool, &category_name, &leaderboard_name)
+                inspections(&pool, &category_name, &leaderboard_name)
                     .await
-                    .map(|reviews| reply::json(&reviews))
+                    .map(|inspections| reply::json(&inspections))
                     .map_err(|e| {
                         dbg!(e);
                         reject::custom(ServerError)
@@ -78,7 +78,7 @@ fn routes(pool: PgPool) -> impl Filter<Extract = impl Reply> + Clone + Send + Sy
         });
 
     let cors = warp::cors().allow_any_origin().build();
-    warp::get().and(categories.or(reviews)).with(cors)
+    warp::get().and(categories.or(inspections)).with(cors)
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -104,17 +104,17 @@ async fn categories(pool: &PgPool) -> Result<Vec<String>, Error> {
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
-struct Review {
+struct Inspection {
     player_steam_id: i64,
     score: i32,
     is_legal: bool,
 }
 
-async fn reviews(
+async fn inspections(
     pool: &PgPool,
     category_name: &str,
     leaderboard_name: &str,
-) -> Result<Vec<Review>, Error> {
+) -> Result<Vec<Inspection>, Error> {
     let query = indoc!(
         "
         WITH category_id AS
@@ -128,7 +128,7 @@ async fn reviews(
         SELECT player_steam_id,
                score,
                is_legal
-        FROM reviews
+        FROM inspections
         WHERE category_id =
             (SELECT *
              FROM category_id)
@@ -139,13 +139,13 @@ async fn reviews(
         "
     );
 
-    let reviews: Vec<Review> = sqlx::query_as(query)
+    let inspections: Vec<Inspection> = sqlx::query_as(query)
         .bind(category_name)
         .bind(leaderboard_name)
         .fetch_all(pool)
         .await?;
 
-    Ok(reviews)
+    Ok(inspections)
 }
 
 #[derive(Debug)]
